@@ -27,13 +27,13 @@ void cloudfs_get_fullpath(const char *path, char *fullpath);
 #endif
 
 #ifdef CRITICAL 
-#define CRTCL(fmt,...) fprintf(stderr,fmt,"CRITICAL:",__func__,__VA_ARGS__)
+#define CRTCL(fmt,...) fprintf(logfile,fmt,"CRITICAL:",__func__,__VA_ARGS__)
 #else
 #define CRTCL(fmt,...) ((void) 0)
 #endif
 
 #ifdef ERROR
-#define ERR(fmt,...) fprintf(stderr,fmt,"ERROR:",__func__,__VA_ARGS__)
+#define ERR(fmt,...) fprintf(logfile,fmt,"ERROR:",__func__,__VA_ARGS__)
 #else
 #define ERR(fmt,...) ((void) 0)
 #endif
