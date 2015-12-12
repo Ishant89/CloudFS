@@ -24,9 +24,11 @@ build/obj/cloudfs.o: cloudfs/cloudfs.cpp /usr/include/stdc-predef.h \
  /usr/include/i386-linux-gnu/bits/select.h \
  /usr/include/i386-linux-gnu/bits/sigset.h \
  /usr/include/i386-linux-gnu/bits/time.h \
+ /usr/include/i386-linux-gnu/bits/select2.h \
  /usr/include/i386-linux-gnu/sys/sysmacros.h \
  /usr/include/i386-linux-gnu/bits/pthreadtypes.h \
- /usr/include/i386-linux-gnu/bits/stat.h /usr/local/include/fuse/fuse.h \
+ /usr/include/i386-linux-gnu/bits/stat.h \
+ /usr/include/i386-linux-gnu/bits/fcntl2.h /usr/local/include/fuse/fuse.h \
  /usr/local/include/fuse/fuse_common.h /usr/local/include/fuse/fuse_opt.h \
  /usr/lib/gcc/i686-linux-gnu/4.8/include/stdint.h /usr/include/stdint.h \
  /usr/include/i386-linux-gnu/bits/wchar.h \
@@ -42,18 +44,34 @@ build/obj/cloudfs.o: cloudfs/cloudfs.cpp /usr/include/stdc-predef.h \
  /usr/include/i386-linux-gnu/bits/stdio_lim.h /usr/include/stdio.h \
  /usr/include/libio.h /usr/include/_G_config.h /usr/include/wchar.h \
  /usr/lib/gcc/i686-linux-gnu/4.8/include/stdarg.h \
- /usr/include/i386-linux-gnu/bits/sys_errlist.h /usr/include/stdlib.h \
+ /usr/include/i386-linux-gnu/bits/sys_errlist.h \
+ /usr/include/i386-linux-gnu/bits/stdio.h \
+ /usr/include/i386-linux-gnu/bits/stdio2.h /usr/include/stdlib.h \
  /usr/include/i386-linux-gnu/bits/waitflags.h \
  /usr/include/i386-linux-gnu/bits/waitstatus.h /usr/include/alloca.h \
- /usr/include/i386-linux-gnu/bits/stdlib-float.h /usr/include/string.h \
- /usr/include/strings.h /usr/include/i386-linux-gnu/sys/xattr.h \
- /usr/include/unistd.h /usr/include/i386-linux-gnu/bits/posix_opt.h \
+ /usr/include/i386-linux-gnu/bits/stdlib-bsearch.h \
+ /usr/include/i386-linux-gnu/bits/stdlib-float.h \
+ /usr/include/i386-linux-gnu/bits/stdlib.h /usr/include/string.h \
+ /usr/include/i386-linux-gnu/bits/string3.h /usr/include/strings.h \
+ /usr/include/i386-linux-gnu/sys/time.h \
+ /usr/include/i386-linux-gnu/sys/xattr.h /usr/include/unistd.h \
+ /usr/include/i386-linux-gnu/bits/posix_opt.h \
  /usr/include/i386-linux-gnu/bits/environments.h \
- /usr/include/i386-linux-gnu/bits/confname.h cloudfs/cloudfs.h \
+ /usr/include/i386-linux-gnu/bits/confname.h \
+ /usr/include/i386-linux-gnu/bits/unistd.h cloudfs/cloudfs.h \
  /usr/include/openssl/md5.h /usr/include/openssl/e_os2.h \
- /usr/include/i386-linux-gnu/openssl/opensslconf.h cloud-lib/cloudapi.h \
- include/libs3.h include/dedup.h /usr/include/c++/4.8/map \
- /usr/include/c++/4.8/bits/stl_tree.h \
+ /usr/include/i386-linux-gnu/openssl/opensslconf.h /usr/include/libtar.h \
+ /usr/include/tar.h /usr/include/libtar_listhash.h \
+ include/../snapshot/snapshot-api.h \
+ /usr/include/i386-linux-gnu/sys/ioctl.h \
+ /usr/include/i386-linux-gnu/bits/ioctls.h \
+ /usr/include/i386-linux-gnu/asm/ioctls.h \
+ /usr/include/asm-generic/ioctls.h /usr/include/linux/ioctl.h \
+ /usr/include/i386-linux-gnu/asm/ioctl.h /usr/include/asm-generic/ioctl.h \
+ /usr/include/i386-linux-gnu/bits/ioctl-types.h \
+ /usr/include/i386-linux-gnu/sys/ttydefaults.h /usr/include/ftw.h \
+ cloud-lib/cloudapi.h include/libs3.h include/dedup.h \
+ /usr/include/c++/4.8/map /usr/include/c++/4.8/bits/stl_tree.h \
  /usr/include/c++/4.8/bits/stl_algobase.h \
  /usr/include/i386-linux-gnu/c++/4.8/bits/c++config.h \
  /usr/include/i386-linux-gnu/c++/4.8/bits/os_defines.h \
@@ -83,6 +101,7 @@ build/obj/cloudfs.o: cloudfs/cloudfs.cpp /usr/include/stdc-predef.h \
  /usr/include/c++/4.8/ostream /usr/include/c++/4.8/ios \
  /usr/include/c++/4.8/iosfwd /usr/include/c++/4.8/bits/stringfwd.h \
  /usr/include/c++/4.8/bits/postypes.h /usr/include/c++/4.8/cwchar \
+ /usr/include/i386-linux-gnu/bits/wchar2.h \
  /usr/include/c++/4.8/bits/char_traits.h \
  /usr/include/c++/4.8/bits/localefwd.h \
  /usr/include/i386-linux-gnu/c++/4.8/bits/c++locale.h \

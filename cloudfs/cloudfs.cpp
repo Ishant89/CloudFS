@@ -13,12 +13,16 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
 #include <time.h>
 #include <unistd.h>
 #include "cloudfs.h"
 #include <openssl/md5.h>
+#include <libtar.h>
+#include <../snapshot/snapshot-api.h>
+#include <ftw.h>
 
 extern "C" {
 	#include "cloudapi.h"
@@ -33,7 +37,7 @@ using namespace std;
 
 #define MIN_SEG_SIZE 2048
 #define MAX_SEG_SIZE 8192 
-
+#define MICRO_SEC_FACTOR 1000
 /* File open for logging */
 FILE* logfile;
 
@@ -61,7 +65,7 @@ std::map<string,cloudfs_segment_entry> cloudfs_segment_data;
 unsigned long file_count_on_cloud;
 
 /* Cloud segment file */
-char cloudfs_segment_file[MAX_PATH_LEN] = "/home/student/mnt/ssd/.cloud_segment_data";
+char cloudfs_segment_file[MAX_PATH_LEN] = ".cloud_segment_data";
 /* Max and min size of the rabin segment */
 int min_seg_size = MIN_SEG_SIZE;
 int max_seg_size = MAX_SEG_SIZE;
@@ -134,6 +138,14 @@ static int UNUSED cloudfs_error(const char *error_str)
 
     /* FUSE always returns -errno to caller (yes, it is negative errno!) */
     return retval;
+}
+
+static void get_full_ssd_path(char * full_path,const char * path)
+{
+        INF("\n%s:%s Entering:%s\n",__func__);
+	strcpy(full_path,state_.ssd_path);
+	strncat(full_path,path,MAX_PATH_LEN- strlen(path));
+	INF("%s:%s Exiting:%s\n",full_path);
 }
 
 void build_hidden_file_path(char * path,char * modified_path)
@@ -245,7 +257,10 @@ void retrieve_hashmap_from_disk()
 {
 	/* Open the file in w+ which will truncate */
 	INF("%s:%s Entering:%s\n",__func__);
-	FILE * file = fopen(cloudfs_segment_file,"ab+");
+	char cloudfs_segment_full_path[MAX_PATH_LEN];
+	get_full_ssd_path(cloudfs_segment_full_path,cloudfs_segment_file);
+
+	FILE * file = fopen(cloudfs_segment_full_path,"ab+");
 	if (file == NULL)
 	{
 		cloudfs_error("unable to open cloudfs_segment_file");
@@ -281,7 +296,10 @@ void update_segment_hashmap_disk()
 {
 	/* Open the file in w+ which will truncate */
 	INF("%s:%s Entering:%s\n",__func__);
-	FILE * file = fopen(cloudfs_segment_file,"wb+");
+	char cloudfs_segment_full_path[MAX_PATH_LEN];
+	get_full_ssd_path(cloudfs_segment_full_path,cloudfs_segment_file);
+
+	FILE * file = fopen(cloudfs_segment_full_path,"wb+");
 	if (file == NULL)
 	{
 		cloudfs_error("unable to open cloudfs_segment_file");
@@ -595,8 +613,8 @@ void compute_file_rabin_segments(char * file_path)
 	close(hidden_fd);
 
 	/* Print hash map */
-	CRTCL("%s:%s Print hash map after segments:%s\n",__func__);
-	print_hash_map();
+	//CRTCL("%s:%s Print hash map after segments:%s\n",__func__);
+	//print_hash_map();
 	INF("%s:%s Exiting:%s\n",file_path);
 }
 void change_ref_count(char * cloud_file_name)
@@ -631,7 +649,22 @@ void change_ref_count(char * cloud_file_name)
 	//print_hash_map();
 	INF("%s:%s Exiting:%s\n",cloud_file_name);
 }
-
+void incr_ref_count()
+{
+	INF("%s:%s Entering:%s\n",__func__);
+	cloudfs_segment_entry entry;
+	std::map<string,cloudfs_segment_entry>::iterator it;
+	for (it = cloudfs_segment_data.begin();it != cloudfs_segment_data.end();++it)
+	{
+		entry = it -> second;
+		entry.reference_count++;
+		cloudfs_segment_data[it->first] = entry;
+	}
+	/* Update the has map to the file */
+	update_segment_hashmap_disk();
+	//print_hash_map();
+	INF("%s:%s Exiting:%s\n",__func__);
+}
 void remove_all_segments(const char * file_path,const char * hidden_file)
 {
        INF("%s:%s Entering:%s,%s\n",hidden_file,file_path);
@@ -672,8 +705,8 @@ void remove_all_segments(const char * file_path,const char * hidden_file)
 
         fclose(file);
 
-	CRTCL("%s:%s after removing segments of a file:%s\n",__func__);
-    	print_hash_map();
+	//CRTCL("%s:%s after removing segments of a file:%s\n",__func__);
+    	//print_hash_map();
         INF("%s:%s Exiting:%s,%s\n",hidden_file,file_path);
 
 }
@@ -685,14 +718,13 @@ void remove_all_segments(const char * file_path,const char * hidden_file)
  */
 void *cloudfs_init(struct fuse_conn_info *conn UNUSED)
 {
-	INF("%s:%s Entering:%s\n",__func__);
+	CRTCL("%s:%s Entering:%s\n",__func__);
   cloud_init(state_.hostname);
   cloud_print_error();
 
   printf("Create bucket\n");
   cloud_create_bucket("cloudfs");
   cloud_print_error();
-    
   /* Temp code */
  /* char input[50]="This is not cool";
   unsigned char checksum[MD5_DIGEST_LENGTH];
@@ -704,15 +736,15 @@ void *cloudfs_init(struct fuse_conn_info *conn UNUSED)
 
   compute_file_rabin_segments("/home/student/mnt/big6");*/
   /* Define a new Map*/
-	INF("%s:%s Exiting:%s\n",__func__);
+	CRTCL("%s:%s Exiting:%s\n",__func__);
   return NULL;
 }
 
 
 void cloudfs_destroy(void *data UNUSED) {
-	INF("%s:%s Entering:%s\n",__func__);
+	CRTCL("%s:%s Entering:%s\n",__func__);
   cloud_destroy();
-	INF("%s:%s Exiting:%s\n",__func__);
+	CRTCL("%s:%s Exiting:%s\n",__func__);
 }
 
 //int cloudfs_getattr(const char *path UNUSED, struct stat *statbuf UNUSED)
@@ -728,13 +760,7 @@ void cloudfs_destroy(void *data UNUSED) {
   //return retval;
 //}
 /* File operations */
-static void get_full_ssd_path(char * full_path,const char * path)
-{
-        INF("\n%s:%s Entering:%s\n",__func__);
-	strcpy(full_path,state_.ssd_path);
-	strncat(full_path,path,MAX_PATH_LEN- strlen(path));
-	INF("%s:%s Exiting:%s\n",full_path);
-}
+
 
 void copy_data_file_at_offset(const char * file_path,const char * temp_file_path, unsigned long file_offset)
 {
@@ -850,7 +876,7 @@ int cloudfs_open(const char *path, struct fuse_file_info *fi)
     INF("%s:%s Cloud file name is %s\n",cloud_file_name);
     
 	struct utimbuf ubuf;
-if (0) {
+if (state_.no_dedup) {
     if (strcmp(path,"/"))
     {
            build_hidden_file_path(org_path,hidden_file_path);
@@ -1379,16 +1405,388 @@ int cloudfs_read(const char *path, char *buf, size_t size, off_t offset, struct 
     return retval;
 }
 
+int write_segments(unsigned int offset,unsigned int size,const char * path,const char * backup_write_file)
+{
+	INF("%s:%s Entering:%u,%u,%s\n",offset,size,path);
+	char file_path[MAX_PATH_LEN];
+	char hidden_file[MAX_PATH_LEN];
+	char hidden_file_path[MAX_PATH_LEN];
+	char orig_path[MAX_PATH_LEN];
+	struct stat cloud_file_stat;
+	unsigned long file_offset;
+	char  cloud_file_name[MAX_PATH_LEN];
+	unsigned int start_ref = offset;
+	unsigned int end_ref = offset + size;
+	strcpy(orig_path,path);
+	char temp_file_path[MAX_PATH_LEN]="/home/student/mnt/ssd/tmp";
+	char temp_segment_file[MAX_PATH_LEN] = "/home/student/mnt/ssd/tmp_segment";
+
+	/* Segment start point and end point */
+	unsigned long start_segment = offset;
+	unsigned long end_segment = offset;
+	
+	int segment_len = 0;
+	int retval = 0;
+
+	get_full_ssd_path(file_path,path);
+	build_hidden_file_path(orig_path,hidden_file);
+	INF("%s:%s hidden:%s\n",hidden_file);
+	get_full_ssd_path(hidden_file_path,hidden_file);
+	INF("%s:%s file:%s,hidden:%s\n",file_path,hidden_file_path);
+	
+	FILE * file = fopen(hidden_file_path,"rb+");
+        INF("%s:%s File in getattr:%p\n",file);
+
+        if (file == NULL)
+        {
+                INF("%s:%s File in getattr is NULL\n:%p",file);
+                retval = cloudfs_error("cloudfs_getattr read hidden file failed");
+                return retval;
+        }
+        retval = fread((void*)&cloud_file_stat,
+                        sizeof(struct stat),1,file);
+
+        INF("%s:%s read ret code is :%d\n",retval);
+        if (retval == 0) {
+                retval = cloudfs_error("cloudfs_getattr read hidden file failed");
+                return retval;
+        }
+	/* Opening the temp segment file */
+	FILE * file1 = fopen(temp_segment_file,"wb+");
+        INF("%s:%s File:%p\n",file1);
+
+        if (file1 == NULL)
+        {
+                INF("%s:%s File in getattr is NULL\n:%p",file1);
+                cloudfs_error("cloudfs_getattr read hidden file failed");
+                return  -1 ;
+        }
+        while (!feof(file))
+        {
+                /*Find the offset and  */
+                fscanf(file,"%lu %s %d\n",&file_offset,cloud_file_name,&segment_len);
+                INF("%s:%s file offset:%lu,filename:%s,segment_len:%d\n",file_offset,cloud_file_name,
+				segment_len);
+		if (file_offset <= start_ref && start_ref < file_offset + segment_len)
+		{
+			/* Fetch the segment starting at the file_offset */
+			INF("%s:%s obt offset:%lu Bucket name:%s\n",file_offset,cloud_file_name);
+			/* Identifying the last segment */
+			start_segment = file_offset;
+			INF("%s:%s last segment is:%lu\n",start_segment);
+
+                	get_from_bucket(cloud_file_name,temp_file_path);
+                	/* Copy the data from temp file to orginal file at offset */
+			INF("%s:%s back up offset:%lu Bucket name:%s\n",file_offset - start_segment,cloud_file_name);
+                	copy_data_file_at_offset(backup_write_file,temp_file_path,file_offset - start_segment);
+			/* This is the end_segment*/
+			end_segment = file_offset;
+			/* Change the reference count */
+			change_ref_count(cloud_file_name);
+		} else 
+		{
+			if (start_ref < file_offset )
+			{
+				if (end_ref < file_offset)
+				{
+					/* No more segments required*/
+					/* Save the following segments into a
+					 * file */
+					INF("%s:%s last req seg:%lu & writing file_off:%lu,filename:%s,segment_len:%u\n",
+							end_segment,file_offset,cloud_file_name,segment_len);
+					fprintf(file1,"%lu %s %d\n",file_offset,cloud_file_name,segment_len);
+					continue;
+				}
+				/* Fetch the segment starting at the file_offset */
+
+				end_segment = file_offset;
+				INF("%s:%s obt offset:%lu Bucket name:%s\n",file_offset,cloud_file_name);
+				get_from_bucket(cloud_file_name,temp_file_path);
+				/* Copy the data from temp file to orginal file at offset */
+				INF("%s:%s back up offset:%lu Bucket name:%s\n",file_offset - start_segment,cloud_file_name);
+				copy_data_file_at_offset(backup_write_file,temp_file_path,file_offset-start_segment);
+
+				/* Change the reference count */
+				change_ref_count(cloud_file_name);
+			} 
+		}
+        }
+
+	/* Closing the temp_segment_file */
+	fclose(file1);
+	/* Closing the hidden file */
+        fclose(file);
+	struct stat temp_stat;
+	if (lstat(temp_file_path,&temp_stat) == 0)
+	{
+        	retval = unlink(temp_file_path);
+		if (retval < 0)
+        	{
+                	cloudfs_error("unlink error unable to unlink temp file ");
+        	}
+	}
+        
+	INF("%s:%s Exiting:%u,%u,%s,%lu\n",offset,size,path,start_segment);
+	return start_segment;
+}
+
+void build_metadata(const char * abs_hidden_file_path,unsigned long start_segment,struct utimbuf * ubuf)
+{
+	INF("%s:%s Entering:%s,%lu,%p\n",abs_hidden_file_path,start_segment,ubuf); 
+
+        char back_up_write_file[MAX_PATH_LEN] = "/home/student/mnt/ssd/.back_up_write";
+	char temp_segment_file[MAX_PATH_LEN] = "/home/student/mnt/ssd/tmp_segment";
+	unsigned long file_offset;
+	char cloud_file_name[MAX_PATH_LEN];
+	unsigned int segment_len;
+	struct stat cloud_file_stat;
+	long curr_position;
+	unsigned long resultant_size = 0;
+	int retval = 0;
+	/* Offset the hidden file where start segment starts */
+        FILE * file = fopen(abs_hidden_file_path,"rb+");
+	int no_seek_flag = 1;
+        INF("%s:%s File opening:%s\n",abs_hidden_file_path);
+
+        if (file == NULL)
+        {
+                INF("%s:%s File in getattr is NULL\n:%p",file);
+                retval = cloudfs_error("cloudfs_getattr read hidden file failed");
+                return ;
+        }
+        retval = fread((void*)&cloud_file_stat,
+                        sizeof(struct stat),1,file);
+
+        INF("%s:%s read ret code is :%d\n",retval);
+        if (retval == 0) {
+                retval = cloudfs_error("cloudfs_getattr read hidden file failed");
+                return ;
+        }
+
+   	while (!feof(file))
+        {
+                /*Find the offset and  */
+		curr_position = ftell(file);
+		INF("%s:%s curr_pos:%ld\n",curr_position);
+                fscanf(file,"%lu %s %d\n",&file_offset,cloud_file_name,&segment_len);
+                INF("%s:%s file offset:%lu,filename:%s,segment_len:%d\n",file_offset,cloud_file_name,
+                                segment_len);
+		if (file_offset == start_segment)
+		{
+			INF("%s:%s seg len(offset) is:%lu\n",file_offset);
+			no_seek_flag = 0;
+			break;
+		}
+	}
+
+	/* Seeking to the position before reading  start_segment*/
+	INF("%s:%s Seeking to the pos where start_segment is:%ld\n",curr_position);
+	if (no_seek_flag == 0)
+	{
+		fseek(file,curr_position,SEEK_SET);
+	}
+	/* Open the temp file */
+
+	/* Offset the hidden file where start segment starts */
+        FILE * file1 = fopen(back_up_write_file,"rb+");
+        INF("%s:%s File opening:%s\n",back_up_write_file);
+
+        if (file1 == NULL)
+        {
+                INF("%s:%s File in getattr is NULL\n:%p",file1);
+                retval = cloudfs_error("cloudfs_getattr read hidden file failed");
+                return ;
+        }
+        retval = fread((void*)&cloud_file_stat,
+                        sizeof(struct stat),1,file1);
+
+        INF("%s:%s read ret code is :%d\n",retval);
+	if (retval == 0) {
+                retval = cloudfs_error("cloudfs_getattr read hidden file failed");
+                return ;
+        }
+	while(!feof(file1))
+	{
+
+                fscanf(file1,"%lu %s %d\n",&file_offset,cloud_file_name,&segment_len);
+                INF("%s:%s writing file offset:%lu,filename:%s,segment_len:%d\n",start_segment + file_offset,
+				cloud_file_name,
+				segment_len);
+		fprintf(file,"%lu %s %d\n",start_segment + file_offset,cloud_file_name,segment_len);
+	}	
+	/* Closing the backup write file */
+	fclose(file1);
+	/* Removing the back up write hidden file */
+	unlink(back_up_write_file);
+
+	/* Opening the temp segment file */
+	FILE * file2 = fopen(temp_segment_file,"rb+");
+        INF("%s:%s File:%p\n",file);
+
+        if (file2 == NULL)
+        {
+                INF("%s:%s File in getattr is NULL\n:%p",file2);
+                retval = cloudfs_error("cloudfs_getattr read hidden file failed");
+                return ;
+        }
+
+	while(!feof(file2))
+	{
+		int n = fscanf(file2,"%lu %s %d\n",&file_offset,cloud_file_name,&segment_len);
+                INF("%s:%s writing file offset:%lu,filename:%s,segment_len:%d\n",file_offset,cloud_file_name,
+				segment_len);
+		INF("%s:%s Num of elements matched:%d\n",n);
+		if (n == 3)
+			fprintf(file,"%lu %s %d\n",file_offset,cloud_file_name,segment_len);
+	}
+	/* Close the temp segment file */
+
+	fclose(file2);
+
+	/* Unlink the file */
+	unlink(temp_segment_file);
+
+	/* seek the file to the begining location */
+	fseek(file,0,SEEK_SET);
+	INF("%s:%s Seek to the first position and read the file:%ld\n",ftell(file));
+	retval = fread((void*)&cloud_file_stat,
+                        sizeof(struct stat),1,file);
+
+        INF("%s:%s read ret code is :%d\n",retval);
+        if (retval == 0) {
+                retval = cloudfs_error("cloudfs_getattr read hidden file failed");
+                return ;
+        }
+
+	while(!feof(file))
+	{
+		fscanf(file,"%lu %s %d\n",&file_offset,cloud_file_name,&segment_len);
+                INF("%s:%s writing file offset:%lu,filename:%s,segment_len:%d\n",file_offset,cloud_file_name,
+				segment_len);
+		resultant_size += segment_len;
+	}
+	/* Changing the size */
+	cloud_file_stat.st_size = resultant_size;
+	INF("%s:%s Resultant size of the file:%ld\n",resultant_size);
+	/* Changing the time */
+	cloud_file_stat.st_atime = ubuf -> actime;
+	cloud_file_stat.st_mtime = ubuf -> modtime;
+
+	/* Seek the file to the beginning position */
+	fseek(file,0,SEEK_SET);
+
+	retval = fwrite((void*)&cloud_file_stat,
+                        sizeof(struct stat),1,file);
+
+        INF("%s:%s write ret code is :%d\n",retval);
+        if (retval == 0) {
+                retval = cloudfs_error("cloudfs_getattr write hidden file failed");
+                return ;
+        }
+	/* Close the file */
+	fclose(file);
+	INF("%s:%s Exiting:%s,%lu,%p\n",abs_hidden_file_path,start_segment,ubuf); 
+}
+
 /* Write */
 
 int cloudfs_write(const char *path UNUSED,const char *buf, size_t size, off_t offset,
              struct fuse_file_info *fi)
 {
-    int retval = 0;
 
     INF("\n%s:%s Entering(path=\"%s\", buf=%p, size=%d, offset=%lld, fi=%p)\n",
             path, buf, size, offset, fi
             );
+    int retval = 0,retval1 = 0;
+    unsigned int file_size ;
+    char org_path[MAX_PATH_LEN];
+    char hidden_file_path[MAX_PATH_LEN];
+    struct stat hidden_statbuf1;
+    struct stat curr_file_stat;
+    char abs_hidden_file_path[MAX_PATH_LEN];
+    char file_path[MAX_PATH_LEN];
+    strcpy(org_path,path);
+    INF("\n%s:%sEntering(path=\"%s\", buf=%p, size=%d, offset=%lld, fi=%p)\n",
+            path, buf, size, offset, fi);
+
+    unsigned long start_segment;
+    struct utimbuf ubuf;
+
+    char back_up_write_file[MAX_PATH_LEN] = "/home/student/mnt/ssd/back_up_write";
+    if (!state_.no_dedup)
+    {
+           build_hidden_file_path(org_path,hidden_file_path);
+           INF("%s:%s hidden file path is:%s\n",hidden_file_path);
+          /* Check if hidden file exists */
+
+         /* Get the lstat of the hidden file if it exists */
+           get_full_ssd_path(abs_hidden_file_path,hidden_file_path);
+           retval1 = lstat(abs_hidden_file_path, &hidden_statbuf1);
+           INF("%s:%s lstat for hidden file(%s) retval:%d\n",abs_hidden_file_path,retval1);
+           if (retval1 == 0)
+           {
+		   /* Get the segments to backup write & get the data from cloud
+		    * to that file and save the earlier segments to
+		    * temp_segment_file */
+			start_segment = write_segments(offset,size,path,back_up_write_file);
+			/* Write to the original file */
+			/* Open the backup_write_file */
+			int fd = open(back_up_write_file,O_CREAT|O_RDWR,S_IRWXU | S_IRWXG | S_IRWXO);
+
+			/* Writing to the file at particular offset */
+			retval = pwrite(fd, buf, size, offset - start_segment);
+		    	if (retval < 0)
+			{
+			    retval = cloudfs_error("cloudfs_write pwrite");
+		    	    return retval;
+			}
+			/* Closing the file */
+			close(fd);
+			
+			/* Get the access time and mt time of the written file
+			 * */
+			retval1 = lstat(back_up_write_file,&curr_file_stat);
+			if (retval1 < 0)
+			{
+				retval1 = cloudfs_error("lstat problem");
+				return retval1;
+			}
+			ubuf.actime = curr_file_stat.st_atime;
+			ubuf.modtime = curr_file_stat.st_mtime;
+			/* Compute the rabin of new segments */
+			compute_file_rabin_segments(back_up_write_file);
+			/* remove the write_backup_file */
+			unlink(back_up_write_file);
+
+			/* Combine the the main hidden file,
+			 * back_up_write_hidden_file and temp_segment_file*/
+			build_metadata(abs_hidden_file_path,start_segment,&ubuf);
+			INF("%s:%s Exiting:%d\n",retval);
+			return retval;
+	   } else 
+	   {
+		    retval = pwrite(fi->fh, buf, size, offset);
+		    if (retval < 0)
+		    {
+			    retval = cloudfs_error("cloudfs_write pwrite");
+			    return retval;
+		    }
+		/* Compute the size of the file */
+		 get_full_ssd_path(file_path,path);
+		retval1 = lstat(file_path,&curr_file_stat);
+		if (retval1 < 0)
+		{
+			return cloudfs_error("write error");
+		}
+		file_size = curr_file_stat.st_size;
+		INF("%s:%s Size to be updated:%d\n",file_size );
+		if ( file_size > state_.threshold)
+		{
+			compute_file_rabin_segments(file_path);
+		}
+		return retval;
+	 }
+    }
 
     retval = pwrite(fi->fh, buf, size, offset);
     if (retval < 0)
@@ -1501,7 +1899,7 @@ int cloudfs_release(const char *path, struct fuse_file_info *fi)
 			if (!state_.no_dedup)
 			{
 				/* Truncating the file */
-				retcode = truncate(file_path, 0);
+	/*			retcode = truncate(file_path, 0);
 				if (retcode < 0)
 				{
 					 retcode = cloudfs_error("cloudfs_truncate truncate");
@@ -1518,7 +1916,7 @@ int cloudfs_release(const char *path, struct fuse_file_info *fi)
 				{
 					retcode = cloudfs_error("cloudfs_utime utime");
 					return retcode;
-				}  
+				}  */
 				  retval = close(fi->fh);
 				  INF("%s:%s Exiting:%d\n",retval);
 				  ALT("%s:%s Exit fstat fi->fh :%lld\n",fi->fh); 
@@ -1574,23 +1972,25 @@ int cloudfs_release(const char *path, struct fuse_file_info *fi)
 			/* Remove the cloud file */
 			INF("%s:%s Removing the bucket:%s",cloud_file_name);
 
-		/*	   if (!state_.no_dedup)
+			   if (!state_.no_dedup)
 			   {
-				   remove_all_segments(file_path,abs_hidden_file_path);
+			//	   remove_all_segments(file_path,abs_hidden_file_path);
 			   } else 
 			   {
 				remove_bucket(cloud_file_name);
-			   } */
+			   } 
 			/* Remove the hidden file */
-		/*	INF("%s:%s Removing the hidden:%s",abs_hidden_file_path);
-			errorcode = unlink(abs_hidden_file_path);
-			if (errorcode< 0)
-			{
-				errorcode = cloudfs_error("cloudfs_unlink unlink");
-				return errorcode;
-			}
-
-    		*/	
+			   if (state_.no_dedup) 
+			   {
+				INF("%s:%s Removing the hidden:%s",abs_hidden_file_path);
+				errorcode = unlink(abs_hidden_file_path);
+				if (errorcode< 0)
+				{
+					errorcode = cloudfs_error("cloudfs_unlink unlink");
+					return errorcode;
+				}
+			   }
+    			
 			retval = close(fi->fh);
 			INF("%s:%s Exiting:%d\n",retval);
 			return retval;
@@ -1598,21 +1998,21 @@ int cloudfs_release(const char *path, struct fuse_file_info *fi)
 
 	   } else 
 	   {
-		   if (!state_.no_dedup)
+		  if (!state_.no_dedup)
 		   {
 			   if (size_curr_file >= (unsigned int)state_.threshold)
-			   {
+			   { 
 				  /*Break into segments */
-				  INF("%s:%s Breaking into segments:%s\n",file_path);
-				  compute_file_rabin_segments(file_path);
+			/*	  INF("%s:%s Breaking into segments:%s\n",file_path);
+				  compute_file_rabin_segments(file_path);*/
 			          /* Close the file */
 				  retval = close(fi->fh);
 			  	  INF("%s:%s Exiting:%d\n",retval);
 			          ALT("%s:%s Exit fstat fi->fh :%lld\n",fi->fh); 
 			  	  return retval;
 
-			   }
-		   }
+			   } 
+		   } 
 		   if (size_curr_file >= (unsigned int)state_.threshold)
 		   {
 			/* File read was successful */
@@ -1739,17 +2139,30 @@ int cloudfs_utime(const char *path, struct utimbuf *ubuf)
 		   /*Hidden file exists */
 		   /* Get the attributes from the hidden file*/
 		INF("%s:%s file exists:%s\n",abs_hidden_file_path);
-		hidden_statbuf1.st_atime = ubuf -> actime; 
-		hidden_statbuf1.st_mtime = ubuf -> modtime; 
                 /* File read was successful */
-		FILE * file = fopen(abs_hidden_file_path,"wb+");
-		INF("%s:%s File in getattr\n:%p",file);
+		FILE * file = fopen(abs_hidden_file_path,"rb+");
 		if (file == NULL)
 		{
 			INF("%s:%s File in getattr is NULL\n:%p",file);
 			retval = cloudfs_error("cloudfs_getattr read hidden file failed");
 			return retval;
 		}
+		INF("%s:%s File in getattr\n:%p",file);
+		retval = fread((void*)&hidden_statbuf1,
+                        sizeof(struct stat),1,file);
+
+        	INF("%s:%s read ret code is :%d\n",retval);
+        	if (retval == 0) {
+                	retval = cloudfs_error("cloudfs_getattr read hidden file failed");
+                	return retval;
+        	}	
+
+
+		hidden_statbuf1.st_atime = ubuf -> actime; 
+		hidden_statbuf1.st_mtime = ubuf -> modtime; 
+	
+		/* Fseek to the prev location */	
+		fseek(file,0,SEEK_SET);
 		retval= fwrite((void*)&hidden_statbuf1,sizeof(struct stat),1,file);
 		INF("%s:%s read ret code is :%d\n",retval);
 		if (retval == 0) {
@@ -1884,20 +2297,355 @@ int cloudfs_truncate(const char *path, off_t newsize)
 {
     int retval = 0;
     char file_path[PATH_MAX];
+    char orig_path[MAX_PATH_LEN];
+    char hidden_file_path[MAX_PATH_LEN];
+    char abs_hidden_file_path[MAX_PATH_LEN];
+
+    strcpy(orig_path,path);
+
 
     INF("\n%s:%s Entering(path=\"%s\", newsize=%lld)\n",
             path, newsize);
     /* Get the full path of the file */
     get_full_ssd_path(file_path,path);
 
+    /* build the hidden file path*/
+    build_hidden_file_path(orig_path,hidden_file_path);
+    /* Get  the full hidden path */
+    get_full_ssd_path(abs_hidden_file_path,hidden_file_path);
+
+    /* Get the hidden path */
     retval = truncate(file_path, newsize);
+    struct stat curr_file_stat;
+    int file_size = newsize;
+    if (!state_.no_dedup)
+    {
+    	retval = lstat(abs_hidden_file_path,&curr_file_stat);
+	if (retval == 0)
+	{
+		if (file_size < state_.threshold)
+		{
+			remove_all_segments(file_path,abs_hidden_file_path);
+		}	
+		INF("%s:%s Removing the hidden:%s",abs_hidden_file_path);
+		int errorcode = unlink(abs_hidden_file_path);
+		if (errorcode< 0)
+		{
+			errorcode = cloudfs_error("cloudfs_unlink unlink");
+			return errorcode;
+		}
+
+	}
+    }
+    
     if (retval < 0)
         cloudfs_error("cloudfs_truncate truncate");
 
     INF("%s:%s Exiting:%d\n",retval);
     return retval;
 }
+int make_tar(const char * src_dir,const char * tar_fname)
+{
+	INF("%s:%s Entering:src (%s) and tar (%s)\n",src_dir,tar_fname);
+	TAR * pTar;
+	char extractTo[MAX_PATH_LEN]= ".";	
+	int error = 0,reterr = 0;
+	error = tar_open(&pTar,tar_fname, NULL, O_WRONLY | O_CREAT, 0644, TAR_GNU);
+	if (error < 0)
+	{
+		reterr = cloudfs_error("Tar open error");
+		return reterr;
+	}
+        error = tar_append_tree(pTar,(char*) src_dir, extractTo);
+        if (error < 0)
+	{
+		reterr = cloudfs_error("Tar append tree error");
+		return reterr;
+	}
+	
+	error = tar_append_eof(pTar);
+        if (error < 0)
+	{
+		reterr = cloudfs_error("Tar eof  error");
+		return reterr;
+	}
+	error = tar_close(pTar);
+	if (error < 0)
+	{
+	 	reterr = cloudfs_error("Tar close error");
+		return reterr;
+	}
+	INF("%s:%s Entering:src (%s) and tar (%s)\n",src_dir,tar_fname);
+	return reterr;
+}
+int extract_tar(const char * final_path,const char * tar_fname)
+{
+	INF("%s:%s Entering:final(%s) tar(%s)\n",final_path,tar_fname);
+	TAR * pTar;
+	int error = 0,reterr = 0 ;
+	error = tar_open(&pTar, tar_fname,NULL, O_RDONLY, 0644, TAR_GNU);
+	if (error < 0)
+	{
+		reterr = cloudfs_error("Tar open error");
+		return reterr;
+	}
+	error = tar_extract_all(pTar,(char*)final_path);
+	if (error < 0)
+	{
+		reterr = cloudfs_error("Tar close error");
+		return reterr;
+	}
+	error = tar_close(pTar);
+	if (error < 0)
+	{
+		reterr = cloudfs_error("Tar close error");
+		return reterr;
+	}
+	INF("%s:%s Exiting:%s\n",final_path);
+}
 
+unsigned long get_timestamp()
+{
+	INF("%s:%s Entering:%s\n",__func__);
+	unsigned long timestamp;
+	struct timeval curr_time;
+	gettimeofday(&curr_time,NULL);
+	timestamp = curr_time.tv_sec * MICRO_SEC_FACTOR + curr_time.tv_usec/MICRO_SEC_FACTOR;
+	INF("%s:%s Entering:%lu\n",timestamp);
+	return timestamp;
+}
+void generate_snapshot_fname(const char * snapshot_fname,unsigned long timestamp)
+{
+	INF("%s:%s Entering:%lu\n",timestamp);
+
+	sprintf((char*)snapshot_fname,"snapshot_%lu.tar",timestamp);
+	INF("%s:%s Exiting:%s\n",snapshot_fname);
+}
+
+void generate_snapshot_folder_install(const char * snapshot_fname,unsigned long timestamp)
+{
+	INF("%s:%s Entering:%lu\n",timestamp);
+
+	sprintf((char*)snapshot_fname,"snapshot_%lu",timestamp);
+	INF("%s:%s Exiting:%s\n",snapshot_fname);
+}
+
+unsigned long create_snapshot()
+{
+	INF("%s:%s Entering:%s\n",__func__);
+	char snapshot_fname[MAX_PATH_LEN];
+	char temp_tar_dir[MAX_PATH_LEN] = "/tmp/";
+	unsigned long tar_file_size;
+	struct stat tar_file_attr;
+	int retval = 0;
+	unsigned long timestamp = get_timestamp();
+	/* Generate snapshot fname */
+	generate_snapshot_fname(snapshot_fname,timestamp);
+
+	strcat(temp_tar_dir,snapshot_fname);
+	
+	INF("%s:%s Tar file:%s\n",temp_tar_dir);
+
+	char src_dir[MAX_PATH_LEN];
+	strcpy(src_dir,state_.ssd_path);	
+
+	retval = make_tar(src_dir,temp_tar_dir);
+	if (retval < 0)
+	{
+		retval = cloudfs_error("Unable to tar");
+		return retval;
+	}
+
+	/* Get the size of the file */
+	retval = lstat(temp_tar_dir,&tar_file_attr);
+	if (retval < 0)
+	{
+		retval = cloudfs_error("Error in stat of tar file");
+		return retval;
+	}
+	tar_file_size = tar_file_attr.st_size;
+	/* Send the tar file to the cloud */
+	write_to_bucket(snapshot_fname,tar_file_size,temp_tar_dir);
+	/* Increment all the reference counts and save it to hash map file */
+	incr_ref_count();
+	
+	/* Unlink the tar file */
+	unlink(temp_tar_dir);
+	INF("%s:%s Exiting:%s\n",__func__);
+	return timestamp;
+}
+
+/** Restore the snapshot **/
+
+int restore_snapshot(unsigned long timestamp)
+{
+	INF("%s:%s Entering:%lu\n",timestamp);
+	char snapshot_fname[MAX_PATH_LEN];
+	char temp_tar_dir[MAX_PATH_LEN] = "/tmp/";
+	int retval = 0;
+	char src_dir[MAX_PATH_LEN];
+	strcpy(src_dir,state_.ssd_path);	
+	char rm_cmd[MAX_PATH_LEN];
+	/* Generate snapshot fname */
+	generate_snapshot_fname(snapshot_fname,timestamp);
+
+	strcat(temp_tar_dir,snapshot_fname);
+	
+	INF("%s:%s Tar file:%s\n",temp_tar_dir);
+	
+	get_from_bucket((char*) snapshot_fname,temp_tar_dir);
+
+
+	/* Remove the /mnt/ssd path */
+	sprintf(rm_cmd,"rm -rf %s/*",src_dir);
+	INF("%s:%s Rm command:%s\n",rm_cmd);
+	retval = system(rm_cmd);
+	if(retval < 0)
+	{
+		retval = cloudfs_error("Prob with rm command");
+		return retval;
+	}
+
+	sprintf(rm_cmd,"rm -rf %s/.*",src_dir);
+	INF("%s:%s Rm command:%s\n",rm_cmd);
+	retval = system(rm_cmd);
+	if(retval < 0)
+	{
+		retval = cloudfs_error("Prob with rm command");
+		return retval;
+	}
+	/* Extract the tar obtained from cloud to src_dir*/
+	retval = extract_tar(src_dir,temp_tar_dir);
+	if (retval < 0)
+	{
+		retval = cloudfs_error("Unable to untar");
+		return retval;
+	}
+	/* Unlink the tar file */
+	unlink(temp_tar_dir);
+
+	INF("%s:%s Exiting:%lu\n",timestamp);
+	return 0;
+}
+
+void get_file_name(char* path,char * fname)
+{
+	char * temp = path;
+	char * temp1 = path;
+	while((temp1 = strchr(temp1,'/')))
+	{
+		temp = temp1;
+		temp1 = temp1 + 1;
+	}
+	strcpy(fname,temp + 1);
+}
+int change_permission(const char * fpath,const struct stat * sb,
+		int typeflag,struct FTW * ftwbuf)
+{
+	INF("%s:%s Entering:%s\n",fpath);
+	if (typeflag == FTW_D)
+	{
+		return 0;
+	}
+	int retval = 0;
+	char filename[MAX_PATH_LEN];
+	get_file_name((char*)fpath,(char*)filename);
+	if (filename[0] == '.')
+	{
+		return 0;
+	}
+	INF("%s:%s Making RO only:%s\n",fpath);
+	retval = chmod(fpath,0666);
+	if (retval < 0)
+	{
+		retval = cloudfs_error("Error in chmod");
+		return retval;
+	}
+	INF("%s:%s Exiting:%s\n",fpath);
+}
+
+/** Install operation **/
+
+int install_snapshot(unsigned long timestamp)
+{
+	INF("%s:%s Entering:%lu\n",timestamp);
+	char snapshot_fname[MAX_PATH_LEN];
+	char snapshot_dir_fname[MAX_PATH_LEN];
+	char temp_tar_dir[MAX_PATH_LEN] = "/tmp/";
+	int retval = 0;
+	char src_dir[MAX_PATH_LEN];
+	strcpy(src_dir,state_.ssd_path);	
+	/* Generate snapshot fname */
+	generate_snapshot_fname(snapshot_fname,timestamp);
+
+	strcat(temp_tar_dir,snapshot_fname);
+	
+	INF("%s:%s Tar file:%s\n",temp_tar_dir);
+	
+	get_from_bucket((char*) snapshot_fname,temp_tar_dir);
+
+	/* Create a new srcDIr with snapshot_xxxxxx in the path */
+	generate_snapshot_folder_install(snapshot_dir_fname,timestamp);
+	strcat(src_dir,snapshot_dir_fname);
+	
+	/* Extract the tar obtained from cloud to src_dir*/
+	retval = extract_tar(src_dir,temp_tar_dir);
+	if (retval < 0)
+	{
+		retval = cloudfs_error("Unable to untar");
+		return retval;
+	}
+	/* Unlink the tar file */
+	unlink(temp_tar_dir);
+	/* Make all files Readonly*/
+	retval = nftw(src_dir,change_permission,20,0);
+	if (retval < 0)
+	{
+		retval = cloudfs_error("Error in nftw");
+	}
+	INF("%s:%s Exiting:%lu\n",timestamp);
+	return retval;
+}
+/** Cloudfs ioctl (Used for Snapshot)**/
+
+int cloudfs_ioctl(const char * path, int cmd,void * arg, 
+		struct fuse_file_info * fi,unsigned int flags, void * data)
+{
+	CRTCL("%s:%s Entering:%s\n",path);
+	printf("In ioctl and cmd is %d and %d\n",cmd,CLOUDFS_SNAPSHOT);
+	unsigned long timestamp;
+	int retval = 0;
+	switch (cmd)
+	{
+		case CLOUDFS_SNAPSHOT:
+			timestamp = create_snapshot();
+			if (timestamp < 0)
+				retval = -1;
+			*(unsigned long *)data = timestamp;
+			break;
+		case CLOUDFS_RESTORE:
+			timestamp = *(unsigned long*)data;
+			retval = restore_snapshot(timestamp);
+			break;
+		case CLOUDFS_INSTALL_SNAPSHOT:
+			timestamp = *(unsigned long*)data;
+			retval = install_snapshot(timestamp);
+			break;
+		default:
+			retval = -1;
+			break;
+
+	}
+/*	TAR * pTar;
+	int error=0;
+	char srcDir[MAX_PATH_LEN]= "/home/student/src/t1";	
+	char tar_fname[MAX_PATH_LEN] = "/home/student/ran1.tar";
+	char final_path[MAX_PATH_LEN] = "/home/student/t3";
+	make_tar(srcDir,tar_fname);
+	extract_tar(final_path,tar_fname);	*/
+	CRTCL("%s:%s Exiting:%lu\n",*(unsigned long *)data);
+	return retval;
+}
 /*
  * Functions supported by cloudfs 
  */
@@ -1925,6 +2673,7 @@ void initialize_cloudfs_ops()
     cloudfs_operations.unlink   = cloudfs_unlink;
     cloudfs_operations.rmdir    = cloudfs_rmdir;
     cloudfs_operations.truncate = cloudfs_truncate;
+    cloudfs_operations.ioctl 	= cloudfs_ioctl;
 }
 
 
@@ -1955,10 +2704,23 @@ int cloudfs_start(struct cloudfs_state *state,
 	      fprintf(stderr, "Failed to init rabinhash algorithm\n");
 	      exit(1);
 	  }
+	   CRTCL("%s:%s print hash map:%s\n",__func__); 
+	   cloudfs_segment_data.clear();
+	   print_hash_map();
 	  INF("%s:%s Size of map is %d, file count:%lu\n",cloudfs_segment_data.size(),file_count_on_cloud);
 	  retrieve_hashmap_from_disk();	
+	   CRTCL("%s:%s print hash map:%s\n",__func__); 
+	   print_hash_map();
   }
+/** Open the snapshot file/ create it & close it */
+  char snapshot_file_name [MAX_PATH_LEN] = ".snapshot";
+  char snapshot_file_path[MAX_SEG_SIZE];
+  get_full_ssd_path(snapshot_file_path,snapshot_file_name);
 
+	int snapshot_fd = open(snapshot_file_path,O_CREAT|O_RDWR,
+			S_IRWXU | S_IRWXG | S_IRWXO);
+	INF("%s:%s Full hidden path is:%d\n",snapshot_fd);
+  close(snapshot_fd);
 
   int fuse_stat = fuse_main(argc, argv, &cloudfs_operations, NULL);
     

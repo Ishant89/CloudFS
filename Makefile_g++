@@ -59,13 +59,13 @@ ifndef CFLAGS
     ifdef DEBUG
         CFLAGS := -g
     else
-        CFLAGS := -g
+        CFLAGS := -O3
     endif
 endif
 
 #          $(CURL_CFLAGS) $(LIBXML2_CFLAGS) 
 	
-CFLAGS += -Wall  -Wshadow -Wextra -Iinclude -Wno-missing-field-initializers\
+CFLAGS += -w -Wshadow -Wextra -Iinclude -Wno-missing-field-initializers\
 					$(FUSE_CFLAGS) \
           -D__STRICT_ANSI__ \
           -D_ISOC99_SOURCE \

@@ -122,16 +122,14 @@ int main(int argc, const char *argv[])
 			exit(2);
 		}
 	}
-	if (!new_segment)
-	{
-		MD5_Final(md5, &ctx);
+	MD5_Final(md5, &ctx);
 
-		printf("%u ", segment_len);
-		for(b = 0; b < MD5_DIGEST_LENGTH; b++) {
-			printf("%02x", md5[b]);
-		}
-		printf("\n");
+	printf("%u ", segment_len);
+	for(b = 0; b < MD5_DIGEST_LENGTH; b++) {
+		printf("%02x", md5[b]);
 	}
+	printf("\n");
+
 	rabin_free(&rp);
 
 	return 0;

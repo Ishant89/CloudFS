@@ -118,5 +118,11 @@
    (d) To delete:
 	   ./scripts/snapshot <path to fuse>/.snapshot d <timestamp>
 
-   (e) To list:
+   (e) To install:
+	   ./scripts/snapshot <path to fuse>/.snapshot i <timestamp>
+
+   (f) To uninstall:
+	   ./scripts/snapshot <path to fuse>/.snapshot u <timestamp>
+
+   (g) To list:
 	   ./scripts/snapshot <path to fuse>/.snapshot l
