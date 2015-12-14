@@ -43,7 +43,6 @@ function execute_part3_tests()
     else
       print_result 0
     fi
-
     # unmount and remount
     $SCRIPTS_DIR/cloudfs_controller.sh u 
     $SCRIPTS_DIR/umount_disks.sh

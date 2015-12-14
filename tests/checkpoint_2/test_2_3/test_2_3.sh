@@ -75,7 +75,7 @@ function execute_part2_tests()
     cp $TEMPDIR/bigfile3 $TESTDIR/bigfile3
     collect_stats >> $STATFILE.dedup
     max_cloud_storage_dedup=`get_cloud_max_usage $STATFILE.dedup`
-
+    read -p "string1" 
     echo "after running cloudfs with dedup enabled "
 
     echo "Cloud capacity usage with dedup    : $max_cloud_storage_dedup bytes"
